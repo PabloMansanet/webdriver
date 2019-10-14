@@ -136,7 +136,7 @@ proc clear*(self: Element) =
   discard checkResponse(resp.body)
 
 proc click*(self: Element) =
-  let reqUrl = $(self.session.driver.url / "session" / self.session.id / 
+  let reqUrl = $(self.session.driver.url / "session" / self.session.id /
                  "element" / self.id / "click")
   let obj = %*{}
   let resp = self.session.driver.client.post(reqUrl, $obj)
@@ -156,6 +156,29 @@ proc sendKeys*(self: Element, text: string) =
     raise newException(WebDriverException, resp.status)
 
   discard checkResponse(resp.body)
+
+proc sendKeys*(self: Session, text: string) =
+  let reqUrl = $(self.driver.url / "session" / self.id / "actions")
+  let obj = %*{"actions": [
+    {
+      "type": "key",
+      "id": "keyboard",
+      "actions": []
+    }
+  ]}
+  for key in text:
+    obj["actions"][0]["actions"].elems.add(
+      %*{
+        "type": "keyDown",
+        "value": $key
+      }
+    )
+    obj["actions"][0]["actions"].elems.add(
+      %*{
+        "type": "keyUp",
+        "value": $key
+      }
+    )
 
 type
   # https://w3c.github.io/webdriver/#keyboard-actions
@@ -303,7 +326,7 @@ proc getAllCookies*(self: Session): seq[Cookie] =
       final.httpOnly = some(cookie["httpOnly"].getBool)
     if cookie.hasKey("expiry"):
       final.expiry = some(cookie["expiry"].getBiggestInt)
-    
+
     result.add final
 
 proc deleteAllCookies*(self: Session): Cookie =
@@ -323,3 +346,4 @@ when isMainModule:
   echo session.findElement("#priceblock_ourprice").get().getText()
 
   session.close()
+
