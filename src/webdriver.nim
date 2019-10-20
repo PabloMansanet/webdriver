@@ -112,9 +112,27 @@ proc findElement*(self: Session, selector: string,
     raise newException(WebDriverException, resp.status)
 
   let respObj = checkResponse(resp.body)
+  echo respObj["value"]
+  echo respObj["value"].getFields()
 
   for key, value in respObj["value"].getFields().pairs():
     return some(Element(id: value.getStr(), session: self))
+
+proc findElements*(self: Session, selector: string,
+                  strategy = CssSelector): seq[Element] =
+  let reqUrl = $(self.driver.url / "session" / self.id / "elements")
+  let reqObj = %*{"using": toKeyword(strategy), "value": selector}
+  let resp = self.driver.client.post(reqUrl, $reqObj)
+  if resp.status == Http404:
+    return
+
+  if resp.status != Http200:
+    raise newException(WebDriverException, resp.status)
+
+  let respObj = checkResponse(resp.body)
+  for element in respObj["value"]:
+    for key, value in element.getFields().pairs():
+      result.add(Element(id:value.getStr(), session: self))
 
 proc getText*(self: Element): string =
   let reqUrl = $(self.session.driver.url / "session" / self.session.id /
@@ -156,29 +174,6 @@ proc sendKeys*(self: Element, text: string) =
     raise newException(WebDriverException, resp.status)
 
   discard checkResponse(resp.body)
-
-proc sendKeys*(self: Session, text: string) =
-  let reqUrl = $(self.driver.url / "session" / self.id / "actions")
-  let obj = %*{"actions": [
-    {
-      "type": "key",
-      "id": "keyboard",
-      "actions": []
-    }
-  ]}
-  for key in text:
-    obj["actions"][0]["actions"].elems.add(
-      %*{
-        "type": "keyDown",
-        "value": $key
-      }
-    )
-    obj["actions"][0]["actions"].elems.add(
-      %*{
-        "type": "keyUp",
-        "value": $key
-      }
-    )
 
 type
   # https://w3c.github.io/webdriver/#keyboard-actions
@@ -337,13 +332,14 @@ proc deleteAllCookies*(self: Session): Cookie =
     raise newException(WebDriverException, resp.status)
 
 when isMainModule:
+  import os
   let webDriver = newWebDriver()
   let session = webDriver.createSession()
-  let amazonUrl = "https://www.amazon.co.uk/Nintendo-Classic-Mini-" &
-                  "Entertainment-System/dp/B073BVHY3F"
-  session.navigate(amazonUrl)
+  session.navigate("https://nim-by-example.github.io/seqs/")
 
-  echo session.findElement("#priceblock_ourprice").get().getText()
+  let elements = session.findElements(selector = "Types", strategy = PartialLinkTextSelector)
+  for element in elements:
+    echo element.id
 
   session.close()
 
